@@ -5,6 +5,16 @@
 var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
 
+var ResourceSchema = new Schema({
+  platform: Number,
+  assetBundles: [
+    {
+      url: String,
+      version: {type: Number, default: 0}
+    }
+  ]
+});
+
 // set up a mongoose model
 var StorySchema = new Schema({
   name: {
@@ -15,17 +25,7 @@ var StorySchema = new Schema({
   iconUrl: String,
   startingSceneName: {type: String, required: true},
   version: {type: Number, default: 0},
-  resources: [
-    {
-      platform: Number,
-      assetBundles: [
-        {
-          url: String,
-          version: {type: Number, default: 0}
-        }
-      ]
-    }
-  ]
+  resources: [ResourceSchema]
 });
 
 module.exports = mongoose.model('Story', StorySchema);
