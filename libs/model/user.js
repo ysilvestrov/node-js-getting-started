@@ -6,15 +6,9 @@ var bcrypt = require('bcrypt-nodejs');
 
 // set up a mongoose model
 var UserSchema = new Schema({
-	name: {
-		type: String,
-		unique: true,
-		required: true
-	},
-	password: {
-		type: String,
-		required: true
-	}
+	name: { type: String, unique: true, required: true},
+	password: { type: String, required: true },
+  hasAdminRights: { type: Boolean, default: false}
 });
 
 UserSchema.pre('save', function (next) {
@@ -45,5 +39,13 @@ UserSchema.methods.comparePassword = function (passw, cb) {
 		cb(null, isMatch);
 	});
 };
+
+UserSchema.methods.isAdmin = function () {
+	return this.hasAdminRights;
+};
+
+UserSchema.statics.findByName = function findByName (name, cb) {
+  return this.findOne({name: name}, cb);
+}
 
 module.exports = mongoose.model('User', UserSchema);

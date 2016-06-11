@@ -45,6 +45,17 @@ describe("Auth tests", function () {
         console.log(err);
       }
     });
+    User.findOneAndRemove({name:'test2'}, function (err) {
+      if (err) {
+        console.log(err);
+      }
+    });
+    User.findOneAndRemove({name:'admin'}, function (err) {
+      if (err) {
+        console.log(err);
+      }
+    });
+    (new User({ name: "admin", password: "admin", hasAdminRights: true})).save();
   });
 
   describe ("signup", function () {
@@ -60,6 +71,65 @@ describe("Auth tests", function () {
           expect(res2).to.have.status(409);
         });
     })
+  });
+
+  describe ("authentication", function () {
+    it("should be able to authenticate with right credentials", function () {
+      return chakram
+        .post(URI + "authenticate", {name: "test", password: "test"})
+        .then(function (res1) {
+          expect(res1).to.have.status(200);
+          expect(res1.body.token).to.match(/^JWT\s+/);
+        })
+    });
+
+    it("should not be able to authenticate with wrong password", function () {
+      return chakram
+        .post(URI + "authenticate", {name: "test", password: "test2"})
+        .then(function (res1) {
+          expect(res1).to.have.status(401);
+        })
+    });
+
+    it("should not be able to authenticate with wrong username", function () {
+      return chakram
+        .post(URI + "authenticate", {name: "test2", password: "test2"})
+        .then(function (res1) {
+          expect(res1).to.have.status(404);
+        })
+    });
+  });
+
+  describe ("authorization", function () {
+    it("should be able to get memberinfo with right credentials", function () {
+      return chakram
+        .post(URI + "authenticate", {name: "test", password: "test"})
+        .then(function (res1) {
+          expect(res1).to.have.status(200);
+          var token = res1.body.token;
+          return chakram.get(URI + "memberinfo", {headers:{Authorization:token}});
+        })
+        .then(function (res3) {
+          expect(res3).to.have.status(200);
+          expect(res3.body.success).to.be.equal(true);
+        });
+    });
+    //
+    // it("should not be able to authenticate with wrong password", function () {
+    //   return chakram
+    //     .post(URI + "authenticate", {name: "test", password: "test2"})
+    //     .then(function (res1) {
+    //       expect(res1).to.have.status(401);
+    //     })
+    // });
+    //
+    // it("should not be able to authenticate with wrong username", function () {
+    //   return chakram
+    //     .post(URI + "authenticate", {name: "test2", password: "test2"})
+    //     .then(function (res1) {
+    //       expect(res1).to.have.status(404);
+    //     })
+    // });
   });
 });
 
@@ -91,16 +161,42 @@ describe("Story tests", function () {
 
   describe ("creating", function () {
 
-    it("should be able to create a story", function () {
+    it("should not be able to create a story w/o permissions", function () {
       return chakram
         .post(URI + "stories", story)
         .then(function (res1) {
+          expect(res1).to.have.status(403);
+        })
+    });
+
+    it("should not be able to create a story w/o admin permissions", function () {
+      return chakram
+        .post(URI + "authenticate", {name: "test", password: "test"})
+        .then(function (res1) {
           expect(res1).to.have.status(200);
-          return chakram
-            .post(URI + "stories", story);
+          var token = res1.body.token;
+          return chakram.post(URI + "stories", story, {headers:{Authorization:token}});
         })
         .then(function (res2) {
-          expect(res2).to.have.status(500);
+          expect(res2).to.have.status(403);
+        })
+    });
+
+    it("should be able to create a story for admin", function () {
+      var token;
+      return chakram
+        .post(URI + "authenticate", {name: "admin", password: "admin"})
+        .then(function (res1) {
+          expect(res1).to.have.status(200);
+          token = res1.body.token;
+          return chakram.post(URI + "stories", story, {headers:{Authorization:token}});
+        })
+        .then(function (res2) {
+          expect(res2).to.have.status(200);
+          return chakram.post(URI + "stories", story, {headers:{Authorization:token}});
+        })
+        .then(function (res3) {
+          expect(res3).to.have.status(500);
         });
     });
 

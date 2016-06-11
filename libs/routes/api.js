@@ -9,6 +9,7 @@ var Story = require(libs + '/model/story'); // get the mongoose model
 
 var router = express.Router();
 var mongouri = process.env.MONGO_URI || "mongodb://localhost:27017/spillikin";
+var secret = process.env.SECRET || "TheSpillikin2016";
 
 mongoose.connect(mongouri);
 
@@ -47,39 +48,51 @@ router.post('/authenticate', function (req, res) {
     if (err) throw err;
 
     if (!user) {
-      res.send({success: false, msg: 'Authentication failed. User not found.'});
+      res.status(404).send({success: false, msg: 'Authentication failed. User not found.'});
     } else {
       user.comparePassword(req.body.password, function (err, isMatch) {
         if (isMatch && !err) {
-          var token = jwt.encode(user, config.secret);
+          var token = jwt.encode(user, secret);
           res.json({success: true, token: 'JWT ' + token});
         } else {
-          res.send({success: false, msg: 'Authentication failed. Wrong password.'});
+          res.status(401).send({success: false, msg: 'Authentication failed. Wrong password.'});
         }
       });
     }
   });
 });
 
-router.get('/memberinfo', passport.authenticate('jwt', {session: false}), function (req, res) {
+router.get('/memberinfo', function (req, res) {
+  checkUserToken(req, res, function (req, res, user) {
+    return res.json({success: true, msg: 'Welcome in the member area ' + user.name + '!'});
+  });
+});
+
+fail = function (res, status, message) {
+  return res.status(status).send({success: false, msg: message});
+}
+
+success = function (res, message) {
+  return res.send({success: true, msg: message});
+}
+
+checkUserToken = function (req, res, cb) {
   var token = getToken(req.headers);
   if (token) {
-    var decoded = jwt.decode(token, config.secret);
-    User.findOne({
-      name: decoded.name
-    }, function (err, user) {
+    var decoded = jwt.decode(token, secret);
+    User.findByName(decoded.name, function (err, user) {
       if (err) throw err;
 
       if (!user) {
-        return res.status(403).send({success: false, msg: 'Authentication failed. User not found.'});
+        return fail(res, 403, 'Authentication failed. User not found.');
       } else {
-        return res.json({success: true, msg: 'Welcome in the member area ' + user.name + '!'});
+        cb(req, res, user);
       }
     });
   } else {
-    return res.status(403).send({success: false, msg: 'No token provided.'});
+    return fail(res, 403, 'No token provided.');
   }
-});
+}
 
 getToken = function (headers) {
   if (headers && headers.authorization) {
@@ -96,22 +109,25 @@ getToken = function (headers) {
 
 router.route('/stories')
   .post(function (req, res) {
+    checkUserToken(req, res, function (req, res, user) {
+      if (!user.isAdmin())
+        return fail(res, 403, "Forbidden");
 
-    var story = new Story();
+      var story = new Story();
 
-    story.name = req.body.name;
-    story.iconUrl = req.body.iconUrl;
-    story.startingSceneName = req.body.startingSceneName;
-    story.version = req.body.version;
-    story.resources = req.body.resources;
+      story.name = req.body.name;
+      story.iconUrl = req.body.iconUrl;
+      story.startingSceneName = req.body.startingSceneName;
+      story.version = req.body.version;
+      story.resources = req.body.resources;
 
-    story.save(function (err) {
-      if (err)
-        res.status(500).json({success: false, msg: 'Cannot create story', error: err});
-      else
-        res.json({success: true, msg: 'Successful created story!'});
+      story.save(function (err) {
+        if (err)
+          return fail(res, 500, 'Cannot create story');
+        else
+          return success(res, 'Successful created story!');
+      });
     });
-
   })
   .get(function (req, res) {
 
@@ -124,45 +140,52 @@ router.route('/stories')
     });
   });
 
-router.route('/stories/:storyId')
+router.route('/stories/:name')
   .get(function (req, res) {
 
-    Story.findById(req.params.storyId, function (err, story) {
+    Story.findByName(req.params.storyId, function (err, story) {
       if (err) {
-        res.json({success: false, msg: 'Cannot get story', error: err});
+        fail(res, 404, 'Cannot get story');
       }
 
       res.json(story);
     });
   })
   .put(function (req, res) {
+    checkUserToken(req, res, function (req, res, user) {
+      if (!user.isAdmin())
+        return fail(res, 403, "Forbidden");
+      Story.findByName(req.params.name, function (err, story) {
+        if (err) {
+          res.json({success: false, msg: 'Cannot get story', error: err});
+        }
 
-    Story.findById(req.params.storyId, function (err, story) {
-      if (err) {
-        res.json({success: false, msg: 'Cannot get story', error: err});
-      }
+        story.name = req.body.name;
+        story.iconUrl = req.body.iconUrl;
+        story.startingSceneName = req.body.startingSceneName;
+        story.version = req.body.version;
+        story.resources = req.body.resources;
 
-      story.name = req.body.name;
-      story.iconUrl = req.body.iconUrl;
-      story.startingSceneName = req.body.startingSceneName;
-      story.version = req.body.version;
+        story.save(function (err) {
+          if (err)
+            fail(res, 500, 'Cannot update story');
 
-      story.save(function (err) {
-        if (err)
-          res.json({success: false, msg: 'Cannot update story', error: err});
-
-        res.json({success: true, msg: 'Successful updated story!'});
+          success(res, 'Successful updated story!');
+        });
       });
     });
   })
   .delete(function (req, res) {
+    checkUserToken(req, res, function (req, res, user) {
+      if (!user.isAdmin())
+        return fail(res, 403, "Forbidden");
+      Story.findByNameAndRemove(req.params.name, function (err, story) {
+        if (err) {
+          res.json({success: false, msg: 'Cannot delete story', error: err});
+        }
 
-    Story.findByIdAndRemove(req.params.storyId, function (err, story) {
-      if (err) {
-        res.json({success: false, msg: 'Cannot delete story', error: err});
-      }
-
-      res.json(story);
+        res.json(story);
+      });
     });
   });
 
