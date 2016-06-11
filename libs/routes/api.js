@@ -1,5 +1,4 @@
 var express = require('express');
-var passport = require('passport');
 var mongoose = require('mongoose');
 var jwt = require('jwt-simple');
 
@@ -8,13 +7,7 @@ var User = require(libs + '/model/user'); // get the mongoose model
 var Story = require(libs + '/model/story'); // get the mongoose model
 
 var router = express.Router();
-var mongouri = process.env.MONGO_URI || "mongodb://localhost:27017/spillikin";
 var secret = process.env.SECRET || "TheSpillikin2016";
-
-mongoose.connect(mongouri);
-
-require(libs + '/auth/passport')(passport);
-
 
 /* GET users listing. */
 router.get('/', function (req, res) {
