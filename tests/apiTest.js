@@ -24,8 +24,21 @@ var Story = require(libs + '/model/story'); // get the mongoose model
 var mongoose = require('mongoose');
 
 var mongouri = process.env.MONGO_URI || "mongodb://localhost:27017/spillikin";
-mongoose.connect(mongouri);
 
+var options = { server: { socketOptions: { keepAlive: 300000, connectTimeoutMS: 30000 } },
+  replset: { socketOptions: { keepAlive: 300000, connectTimeoutMS : 30000 } } };
+
+mongoose.connect(mongouri, options);
+var conn = mongoose.connection;
+
+conn.on('error', console.error.bind(console, 'connection error:'));
+
+conn.once('open', function() {
+  // Wait for the database connection to establish, then start the app.                         
+});
+
+
+//var URI = "https://spillikin.herokuapp.com/api/";
 var URI = "http://localhost:5000/api/";
 
 describe("API tests", function() {
